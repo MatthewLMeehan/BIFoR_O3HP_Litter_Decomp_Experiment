@@ -1,0 +1,93 @@
+---
+title: "GLOBAL CHANGE FACTORS - LEAF LITTER DECOMPOSITION"
+author: ""
+date: "2025-05-11"
+output: html_document
+---
+
+## Load datafiles and packages
+
+```{r warning=FALSE, message = FALSE}
+rm(list=ls())
+library(ggplot2)
+library(dplyr)
+library(plotrix)
+library(car)
+
+
+
+# IMPORT DATA FILE OR SET WORKING DIRECTORY
+
+# IMPORT DATA FILED CALLED : Master_Initial_Litter_C_N_Data_NERC_Submission_May4_2026
+
+data<-Master_Initial_Litter_C_N_Data_NERC_Submission_May4_2026
+
+
+str(data)
+colnames(data)
+
+data$f.Experiment<-factor(data$Experiment)
+data$f.Treatment<-factor(data$Treatment)
+```
+
+
+## BIFoR FACE
+
+```{r}
+BIFOR.data<-subset(data,f.Experiment =="BIFOR" )
+
+BIFOR.Initial_summary <- BIFOR.data %>% 
+  group_by( f.Treatment) %>%   
+  summarise(N_mean = mean(N_perc,na.rm=TRUE),  
+            N_se = std.error(N_perc),
+            C_mean = mean(C_perc,na.rm=TRUE),  
+            C_se = std.error(C_perc),
+            CN_mean = mean(C_N,na.rm=TRUE),  
+            CN_se = std.error(C_N))
+BIFOR.Initial_summary <-data.frame(BIFOR.Initial_summary)
+
+
+N.perc.BIFOR<-aov(N_perc~	f.Treatment,data=BIFOR.data)
+summary(N.perc.BIFOR)
+
+C.perc.BIFOR<-aov(C_perc~	f.Treatment,data=BIFOR.data)
+summary(C.perc.BIFOR)
+
+CN.BIFOR<-aov( C_N ~	f.Treatment,data=BIFOR.data)
+summary(CN.BIFOR)
+
+
+```
+
+## O3HP
+
+```{r}
+OHP.data<-subset(data,f.Experiment =="OHP" )
+
+OHP.Initial_summary <- OHP.data %>% 
+  group_by( f.Treatment) %>%   
+  summarise(N_mean = mean(N_perc,na.rm=TRUE),  
+            N_se = std.error(N_perc),
+            C_mean = mean(C_perc,na.rm=TRUE),  
+            C_se = std.error(C_perc),
+            CN_mean = mean(C_N,na.rm=TRUE),  
+            CN_se = std.error(C_N))
+OHP.Initial_summary<-data.frame(OHP.Initial_summary )
+
+
+N.perc.OHP<-aov(N_perc~	f.Treatment,data=OHP.data)
+summary(N.perc.OHP)
+
+C.perc.OHP<-aov(C_perc~	f.Treatment,data=OHP.data)
+summary(C.perc.OHP)
+
+CN.OHP<-aov( C_N ~	f.Treatment,data=OHP.data)
+summary(CN.OHP)
+```
+
+## Session Info
+
+```{r}
+sessionInfo()
+```
+
