@@ -3,4 +3,6 @@ Litter decomposition experiment performed at the field sites BIFoR FACE (Birming
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23986938.svg)](https://doi.org/10.5281/zenodo.23986938)
 
-Permanent DOI is listed above.  Data will also be stored at the Environmental Information Data Centre at the National Environmental Research Council (NERC). Please find these links below and they will be updated when they become available.
+Files will also be submitted to the Natural Environment Research Council (UK) Environmental Information Data Centre (EIDC).  I will update the description here when it becomes available.
+
+If using this data, please cite the EIDC DOI, citations for the code specifically can done with the Zenodo DOI. 
