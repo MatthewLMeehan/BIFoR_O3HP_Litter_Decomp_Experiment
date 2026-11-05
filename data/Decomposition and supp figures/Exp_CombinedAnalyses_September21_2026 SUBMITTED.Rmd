@@ -1,0 +1,522 @@
+---
+title: "GLOBAL CHANGE FACTORS - LEAF LITTER DECOMPOSITION"
+output: html_document
+date: "2026-07-15"
+---
+
+## Loading Packages and Datafiles
+
+```{r warning=FALSE, message = FALSE}
+rm(list=ls())
+library(ggplot2)
+library(dplyr)
+library(plotrix)
+library(car)
+library(MASS)
+library(lmerTest)
+library(nlme)
+library(vegan)
+library(cowplot)
+library(ggrepel)
+library(DHARMa)
+library(MuMIn)
+library(ggtext)
+library(emmeans)
+library(forcats)
+library(effectsize)
+library(ggeffects)
+
+dodge <- position_dodge(width=0.7)
+
+
+# IMPORT DATA FILE OR SET WORKING DIRECTORY
+
+# IMPORT DATA FILED CALLED : Master_BIFOR_Data_NERC_Submission_May4_2026
+# IMPORT DATA FILED CALLED : Master_OHP_Data_NERC_Submission_May4_2026
+
+# THIS SCRIPT SHOWS RESULTS OF MASS LOSS AND EFFECT SIZE, AND THE COMBINED PLOTS IN THE SUPPLEMENTAL
+
+# ALL OTHER RESULTS ARE IN THEIR OWN SCRIPTS, ONE FOR EACH EXPERIMENT
+
+b.data<-Master_BIFOR_Data_NERC_Submission_May4_2026
+o.data<-Master_OHP_Data_NERC_Submission_May4_2026
+
+colnames(b.data)
+b.data.refin<-b.data[,c(1:7)]
+o.data.refin<-o.data[,c(1:7)]
+
+b.data.refin$f.plot<-factor(b.data.refin$plot)
+b.data.refin$f.nb_pair<-factor(b.data.refin$nb_pair)
+b.data.refin$f.Harvest<-factor(b.data.refin$Harvest)
+b.data.refin$f.Treatment<-factor(b.data.refin$Treatment)
+b.data.refin$f.Litter_Type<-factor(b.data.refin$Litter_Type)
+b.data.refin$months<-rep(c(8,12,17,23), each=60)
+
+#b.data.refin$ord.Harvest<-ordered(b.data.refin$Harvest)
+
+o.data.refin$f.plot<-factor(o.data.refin$plot)
+o.data.refin$f.nb_pair<-factor(o.data.refin$nb_pair)
+o.data.refin$f.Harvest<-factor(o.data.refin$Harvest)
+o.data.refin$f.Treatment<-factor(o.data.refin$Treatment)
+o.data.refin$f.Litter_Type<-factor(o.data.refin$Litter_Type)
+o.data.refin$months<-rep(c(10,13,21,34), each=60)
+
+
+
+```
+
+## Elevated CO2 Experiment at BIFoR FACE - Mass Loss
+
+```{r}
+
+b.massloss.model <- lmer(massloss ~ f.Treatment*f.Litter_Type*f.Harvest + (1| f.plot), data =b.data.refin)
+summary(b.massloss.model)
+anova(b.massloss.model)
+
+round(r.squaredGLMM(b.massloss.model),3)
+
+plot(simulateResiduals(fittedModel = b.massloss.model))
+
+b.massloss_summary <- b.data.refin  %>%   
+  group_by( f.Treatment,f.Litter_Type,f.Harvest) %>%   
+  summarise(mean = mean(massloss,na.rm=TRUE),  
+            se = std.error(massloss),
+            count =  sum(!is.na(massloss)),
+            sd = sd(massloss, na.rm=TRUE))
+b.massloss_summary <-data.frame(b.massloss_summary)
+
+dodge <- position_dodge(width=1.5)
+
+
+b.massloss_summary2<-b.massloss_summary
+b.massloss_summary2$months<-c(8,12,17,23,8,12,17,23,8,12,17,23,8,12,17,23)
+
+
+b.decomposition.fig<-ggplot(b.massloss_summary2  , aes(months, 100-mean,fill=f.Litter_Type,shape=f.Treatment)) + 
+  geom_errorbar(aes(ymin = (100-mean) - se, ymax = (100-mean)  + se),position=dodge,width=2.2,size=0.5) +
+  geom_point(data=b.data.refin, aes(x=months,y=100-massloss,fill=f.Litter_Type,shape=f.Treatment),
+             size=1.7,color="black",stroke=0.4,alpha=0.4,position=dodge)+
+  geom_point(stat="identity",size=4,color="black",alpha=1,position=dodge) +
+  scale_fill_manual(values = c("darkseagreen3","orange2"),labels = c("Control", "Experimental"))+
+  scale_shape_manual(values=c(22,24),labels = c("Ambient", "Elevated"))+
+  guides(fill = guide_legend(override.aes = list(shape = 21),order=1 ),
+         shape = guide_legend(override.aes = list(fill = "black")) )+
+  scale_y_continuous(limits=c(0,100)) +
+  scale_x_continuous(limits=c(7,25)) +
+  guides(color="none")+
+  labs(x = "Months", y="Remaining Litter (%)" ,shape="Environment",fill="Litter Origin",title=expression(Elevated~CO[2]~experiment~at~BIFoR~FACE))+
+    theme_classic()+
+  theme(axis.title.x = element_text(color = "grey2", size =18),
+        axis.text.x = element_text(color = "grey2", size =16),
+        axis.title.y = element_text(color = "grey2", size = 18),
+        axis.text.y = element_text(color = "grey2", size =16),
+        legend.text = element_text(color = "grey2", size =14),
+        legend.title = element_text(color = "grey2", size =16),
+         legend.position="bottom",
+        plot.title = element_text(size=19))
+
+b.decomposition.fig
+
+
+pairs(emmeans(b.massloss.model, ~ f.Litter_Type | f.Treatment+f.Harvest))
+pairs(emmeans(b.massloss.model, ~ f.Treatment | f.Litter_Type+f.Harvest))
+
+
+
+b.lit.mass.pred <- ggemmeans(b.massloss.model , ~ f.Litter_Type | f.Treatment + f.Harvest) %>% 
+ rename(f.Litter_Type=x,  f.Treatment=group,  f.Harvest =facet) %>% 
+  group_by(f.Harvest,f.Treatment) %>% 
+  summarise(
+    lrr = log(predicted[f.Litter_Type=='elevated']/predicted[f.Litter_Type=='ambient']), 
+    se_lrr = sqrt((std.error[f.Litter_Type=='elevated']^2/predicted[f.Litter_Type=='elevated']^2)+
+                        (std.error[f.Litter_Type=='ambient']^2/predicted[f.Litter_Type=='ambient']^2)),
+    .groups = "drop")
+b.lit.mass.pred$months<-factor(c(8,8,12,12,17,17,23,23))
+
+
+b.lit.mass.pred2 <- ggemmeans(b.massloss.model , ~ f.Treatment | f.Litter_Type + f.Harvest) %>% 
+ rename(f.Treatment=x,  f.Litter_Type=group,  f.Harvest =facet) %>% 
+  group_by(f.Harvest,f.Litter_Type) %>% 
+  summarise(
+    lrr = log(predicted[f.Treatment=='eCO2']/predicted[f.Treatment=='control']), 
+    se_lrr = sqrt((std.error[f.Treatment=='eCO2']^2/predicted[f.Treatment=='eCO2']^2)+
+                        (std.error[f.Treatment=='control']^2/predicted[f.Treatment=='control']^2)),
+    .groups = "drop")
+b.lit.mass.pred2$months<-factor(c(8,8,12,12,17,17,23,23))
+
+
+
+pd <- position_dodge(width = 0.6)
+b.mass.eff.fig<-ggplot(b.lit.mass.pred , aes(x=months, y=lrr))+
+  facet_grid(cols=vars(f.Treatment), labeller = labeller(f.Treatment=c("control"="Environment = Ambient","eCO2"="Environment = Elevated"))) + 
+  labs(x='Months', 
+       y='Log response ratio +/- 95% CI\n(Experimental / Control)', title = "Litter Origin") + 
+  geom_errorbar(aes(ymin=lrr-2*se_lrr, ymax=lrr+2*se_lrr), width=.3, position = pd) +
+  geom_point(size = 4, position = pd) +
+   geom_hline(yintercept = 0, linetype = "dashed", linewidth=0.7)+
+  coord_cartesian(ylim=c(-0.25, 0.25)) + 
+  theme_bw()+
+  theme(axis.title.x = element_text(color = "grey2", size =17),
+        axis.text.x = element_text(color = "grey2", size =15),
+        axis.title.y = element_text(color = "grey2", size = 16),
+        axis.text.y = element_text(color = "grey2", size =15),
+         strip.text = element_text(size = 10),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        plot.title = element_text(size=17))
+b.mass.eff.fig
+
+
+b.mass.eff.fig2<-ggplot(b.lit.mass.pred2 , aes(x=months, y=lrr))+
+  facet_grid(cols=vars(f.Litter_Type), labeller = labeller(f.Litter_Type=c("ambient"="Litter Origin = Control","elevated"="Litter Origin = Experimental"))) + 
+  labs(x='Months', 
+       y='Log response ratio +/- 95% CI\n(Elevated /Ambient)', title="Environment") + 
+  geom_errorbar(aes(ymin=lrr-2*se_lrr, ymax=lrr+2*se_lrr), width=.3, position = pd) +
+  geom_point(size = 4, position = pd) +
+   geom_hline(yintercept = 0, linetype = "dashed", linewidth=0.7)+
+  coord_cartesian(ylim=c(-0.25, 0.25)) + 
+  theme_bw()+
+  theme(axis.title.x = element_text(color = "grey2", size =17),
+        axis.text.x = element_text(color = "grey2", size =15),
+        axis.title.y = element_text(color = "grey2", size = 16),
+        axis.text.y = element_text(color = "grey2", size =15),
+         strip.text = element_text(size = 9.8),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        plot.title = element_text(size=17))
+b.mass.eff.fig2
+
+
+
+side_row <- plot_grid(b.mass.eff.fig,b.mass.eff.fig2,labels = c('B', 'C'), label_size = 16,ncol=1)
+jpeg("BIFOR_Decomposition.jpeg", width=2200, height=1250, res = 150, quality = 200)
+plot_grid(b.decomposition.fig,side_row, labels = c('A', ''), label_size = 16, ncol = 2, rel_widths = c(2,1.1), scale=0.9)
+dev.off()
+
+
+```
+
+## Drought Experiment at O3HP - Mass Loss
+
+```{r}
+
+o.massloss.model <- lmer(massloss ~ f.Treatment*f.Litter_Type*f.Harvest + (1|f.plot) , data = o.data.refin)
+summary(o.massloss.model)
+anova(o.massloss.model)
+
+round(r.squaredGLMM(o.massloss.model),4)
+
+
+plot(simulateResiduals(fittedModel = o.massloss.model))
+
+
+o.massloss_summary <- o.data.refin %>% 
+  group_by( f.Treatment,f.Litter_Type,f.Harvest) %>%   
+  summarise(mean = mean(massloss),  
+            se = std.error(massloss))
+o.massloss_summary <-data.frame(o.massloss_summary)
+
+dodge <- position_dodge(width=1.5)
+
+
+o.massloss_summary2<-o.massloss_summary
+o.massloss_summary2$months<-c(10,13,21,34,10,13,21,34,10,13,21,34,10,13,21,34)
+
+o.decomposition.fig<-ggplot(o.massloss_summary2  , aes(months, 100-mean,fill=f.Litter_Type,shape=f.Treatment)) + 
+  geom_errorbar(aes(ymin = (100-mean) - se, ymax = (100-mean)  + se),position=dodge,width=2.2,size=0.5) +
+  geom_point(data=o.data.refin, aes(x=months,y=100-massloss,fill=f.Litter_Type,shape=f.Treatment),
+             size=1.7,color="black",stroke=0.4,alpha=0.4,position=dodge) +
+  geom_point(stat="identity",size=4,color="black",alpha=1,position=dodge) +
+  scale_fill_manual(values = c("slategray3","palevioletred1"),labels = c("Control", "Experimental"))+
+  scale_shape_manual(values=c(22,24),labels = c("Ambient", "Drought"))+
+  guides(fill = guide_legend(override.aes = list(shape = 21),order=1 ),
+         shape = guide_legend(override.aes = list(fill = "black")) )+
+  scale_y_continuous(limits=c(0,100)) +
+  guides(color="none")+
+  labs(x = "Months", y="Remaining Litter (%)",shape="Environment",fill="Litter Origin",title=expression(Drought~experiment~at~O[3]*HP))+
+    theme_classic()+ 
+  theme_classic()+
+  theme(axis.title.x = element_text(color = "grey2", size =18),
+        axis.text.x = element_text(color = "grey2", size =16),
+        axis.title.y = element_text(color = "grey2", size = 18),
+        axis.text.y = element_text(color = "grey2", size =16),
+        legend.text = element_text(color = "grey2", size =14),
+        legend.title = element_text(color = "grey2", size =16),
+         legend.position="bottom",
+        plot.title = element_text(size=19))
+o.decomposition.fig
+
+
+
+pairs(emmeans(o.massloss.model, ~ f.Litter_Type | f.Treatment+f.Harvest))
+pairs(emmeans(o.massloss.model, ~ f.Treatment | f.Litter_Type+f.Harvest))
+
+
+o.lit.mass.pred <- ggemmeans(o.massloss.model , ~  f.Litter_Type | f.Treatment+f.Harvest) %>% 
+ rename(f.Litter_Type=x,  f.Treatment=group,  f.Harvest =facet) %>% 
+  group_by(f.Harvest,f.Treatment) %>% 
+  summarise(
+    lrr = log(predicted[f.Litter_Type=='drought']/predicted[f.Litter_Type=='control']), 
+    se_lrr = sqrt((std.error[f.Litter_Type=='drought']^2/predicted[f.Litter_Type=='drought']^2)+
+                        (std.error[f.Litter_Type=='control']^2/predicted[f.Litter_Type=='control']^2)),
+    .groups = "drop")
+o.lit.mass.pred$months<-factor(c(10,10,13,13,21,21,34,34))
+
+
+
+o.lit.mass.pred2 <- ggemmeans(o.massloss.model , ~  f.Treatment | f.Litter_Type+f.Harvest) %>% 
+ rename(f.Treatment=x,  f.Litter_Type=group,  f.Harvest =facet) %>% 
+  group_by(f.Harvest,f.Litter_Type) %>% 
+  summarise(
+    lrr = log(predicted[f.Treatment=='Drought']/predicted[f.Treatment=='Control']), 
+    se_lrr = sqrt((std.error[f.Treatment=='Drought']^2/predicted[f.Treatment=='Drought']^2)+
+                        (std.error[f.Treatment=='Control']^2/predicted[f.Treatment=='Control']^2)),
+    .groups = "drop")
+o.lit.mass.pred2$months<-factor(c(10,10,13,13,21,21,34,34))
+
+
+o.mass.eff.fig<-ggplot(o.lit.mass.pred , aes(x=months, y=lrr))+
+  facet_grid(cols=vars(f.Treatment), labeller = labeller(f.Treatment=c("Control"="Environment = Ambient","Drought"="Environment = Drought"))) + 
+  labs(x='Months', 
+       y='Log response ratio +/- 95% CI\n(Experimental / Control)', title = "Litter Origin") + 
+  geom_errorbar(aes(ymin=lrr-2*se_lrr, ymax=lrr+2*se_lrr), width=.3, position = pd) +
+  geom_point(size = 4, position = pd) +
+   geom_hline(yintercept = 0, linetype = "dashed", linewidth=0.7)+
+  coord_cartesian(ylim=c(-0.45, 0.45)) + 
+  theme_bw()+
+  theme(axis.title.x = element_text(color = "grey2", size =17),
+        axis.text.x = element_text(color = "grey2", size =15),
+        axis.title.y = element_text(color = "grey2", size = 16),
+        axis.text.y = element_text(color = "grey2", size =15),
+         strip.text = element_text(size = 10),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        plot.title = element_text(size=17))
+o.mass.eff.fig
+
+
+
+o.mass.eff.fig2<-ggplot(o.lit.mass.pred2 , aes(x=months, y=lrr))+
+  facet_grid(cols=vars(f.Litter_Type), labeller = labeller(f.Litter_Type=c("control"="Litter Origin = Control","drought"="Litter Origin = Experimental"))) + 
+  labs(x='Months', 
+       y='Log response ratio +/- 95% CI\n(Drought /Ambient)', 
+       title="Environment") + 
+  geom_errorbar(aes(ymin=lrr-2*se_lrr, ymax=lrr+2*se_lrr), width=.3, position = pd) +
+  geom_point(size = 4, position = pd) +
+   geom_hline(yintercept = 0, linetype = "dashed", linewidth=0.7)+
+  coord_cartesian(ylim=c(-0.45, 0.45)) + 
+  theme_bw()+
+  theme(axis.title.x = element_text(color = "grey2", size =17),
+        axis.text.x = element_text(color = "grey2", size =15),
+        axis.title.y = element_text(color = "grey2", size = 16),
+        axis.text.y = element_text(color = "grey2", size =15),
+         strip.text = element_text(size = 9.8),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        plot.title = element_text(size=17))
+o.mass.eff.fig2
+
+
+side_row2 <- plot_grid(o.mass.eff.fig,o.mass.eff.fig2,labels = c('E', 'F'), label_size = 16,ncol=1)
+jpeg("OHP_Decomposition.jpeg", width=2200, height=1250, res = 150, quality = 200)
+plot_grid(o.decomposition.fig,side_row2, labels = c('D', ''), label_size = 16, ncol = 2, rel_widths = c(2,1.1), scale = 0.9)
+dev.off()
+
+
+
+```
+
+
+
+# ORGANIZING DATA TO MERGE INTO ONE FILE
+
+```{r}
+colnames(o.data) == colnames(b.data)
+colnames(b.data) <- colnames(o.data) # THE PLFA LABELS WERE CORRECT, BUT SLIGHT DIFFERENCES IN SPACING WERE PRESENT SO I TRANSPLATED LABELS FROM ONE DATASET ONTO ANOTHER
+
+c.data.v2<-data.frame(rbind(b.data, o.data))
+c.data.v2$Experiment<-c(rep("BIFOR",times=240), rep("OHP",times=240))
+
+c.data.v2$f.plot<-factor(c.data.v2$plot)
+c.data.v2$f.nb_pair<-factor(c.data.v2$nb_pair)
+c.data.v2$f.Harvest<-factor(c.data.v2$Harvest)
+c.data.v2$f.Treatment<-factor(c.data.v2$Treatment)
+c.data.v2$f.Litter_Type<-factor(c.data.v2$Litter_Type)
+c.data.v2$f.Experiment<-factor(c.data.v2$Experiment)
+
+
+c.data.final<-c.data.v2 %>% mutate(f.Treatment_new = fct_collapse(f.Treatment, "Control_treatment" = c("control", "Control"), "Manipulate_treatment" = c("Drought", "eCO2"))) %>% mutate(f.Litter_Type_new = fct_collapse(f.Litter_Type, "Control_litter" = c("ambient", "control"), "Experimental_treatment" = c("drought", "elevated")))
+  
+
+c.data.h3.ftir<- c.data.final %>% filter(Harvest == 3)%>% dplyr::select(c(11:25,57,60:62)) %>% na.omit()
+nrow(c.data.h3.ftir)
+
+c.data.h4.ftir<- c.data.final %>% filter(Harvest == 4)%>% dplyr::select(c(11:25,57,60:62)) %>% na.omit()
+nrow(c.data.h4.ftir) # FOUR SAMPLES WERE REMOVED FROM DATASET, NO MEASUREMENTS WERE TAKEN
+
+c.data.h3.plfa<- c.data.final %>% filter(Harvest == 3)%>% dplyr::select(c(26:43,57,60:62)) %>% na.omit()
+nrow(c.data.h3.plfa) # FOUR SAMPLES WERE REMOVED, DID NOT PERFORM PLFAS
+
+
+
+```
+## FTIR H3
+
+```{r}
+
+
+FTIR.H3.PCA <- rda(c.data.h3.ftir[,c(1:15)],scale=TRUE) 
+  
+summary(FTIR.H3.PCA)
+
+
+scores.pca.FTIR.H3<-vegan::scores(FTIR.H3.PCA, choices=c(1,2), scaling=3) 
+
+Bands.FTIR.H3.PCA <- data.frame(scores.pca.FTIR.H3$species)
+  
+Bands.FTIR.H3.PCA$Band <- rownames(Bands.FTIR.H3.PCA)
+  
+Sample.FTIR.H3.PCA <- data.frame(scores.pca.FTIR.H3$sites)
+
+Sample.FTIR.H3.PCA<-data.frame(Sample.FTIR.H3.PCA,c.data.h3.ftir$f.Litter_Type_new,c.data.h3.ftir$f.Treatment_new,c.data.h3.ftir$f.Experiment)
+colnames(Sample.FTIR.H3.PCA)
+colnames(Sample.FTIR.H3.PCA)[3]<-"f.Litter_Type"
+colnames(Sample.FTIR.H3.PCA)[4]<-"f.Treatment"
+colnames(Sample.FTIR.H3.PCA)[5]<-"f.Experiment"
+
+
+FTIR.comb.H3.pl.fig<-ggplot(Sample.FTIR.H3.PCA, aes(x = PC1, y =PC2)) + 
+  geom_segment(data = Bands.FTIR.H3.PCA, aes(xend = PC1, yend = PC2,x = 0, y = 0),col = "black",size=1, 
+               arrow = arrow(length = unit(0.25, "cm"))) +
+  geom_label_repel(data = Bands.FTIR.H3.PCA, aes(x = PC1, y = PC2, label = rownames(Bands.FTIR.H3.PCA)), col = "black") +
+  geom_point(aes(fill=f.Experiment),size=5,alpha = 0.7, shape=21) +
+ scale_fill_manual(values = c("orange2","slategray3"),labels = parse(text = c("BIFoR", "O[3]*'HP'")))+
+  #guides(fill = guide_legend(override.aes = list(shape = 21),order=1 ),
+         #shape = guide_legend(override.aes = list(fill = "black")) )+
+  labs(title="Leaf Litter Functional Groups",
+       x="PC1 (50.44% Variance Explained)",
+       y="PC2 (18.94% Variance Explained)" ,fill = "Experiment")+
+  theme_classic()+
+  theme(axis.title.x = element_text(color = "grey2", size =17),
+        axis.text.x = element_text(color = "grey2", size =15),
+        axis.title.y = element_text(color = "grey2", size = 17),
+        axis.text.y = element_text(color = "grey2", size =15),
+        legend.text = element_text(color = "grey2", size =15),
+        legend.title = element_text(color = "grey2", size =17),
+         legend.position = "right",
+        plot.title = ggtext::element_markdown(size=21))
+
+
+
+```
+
+
+## FTIR H4
+
+```{r}
+
+FTIR.H4.PCA <- rda(c.data.h4.ftir[,c(1:15)],scale=TRUE) 
+  
+summary(FTIR.H4.PCA)
+
+scores.pca.FTIR.H4<-vegan::scores(FTIR.H4.PCA, choices=c(1,2), scaling=3) 
+
+Bands.FTIR.H4.PCA <- data.frame(scores.pca.FTIR.H4$species)
+  
+Bands.FTIR.H4.PCA$Band <- rownames(Bands.FTIR.H4.PCA)
+  
+Sample.FTIR.H4.PCA <- data.frame(scores.pca.FTIR.H4$sites)
+
+Sample.FTIR.H4.PCA<-data.frame(Sample.FTIR.H4.PCA,c.data.h4.ftir$f.Litter_Type_new,c.data.h4.ftir$f.Treatment_new,c.data.h4.ftir$f.Experiment)
+colnames(Sample.FTIR.H4.PCA)
+colnames(Sample.FTIR.H4.PCA)[3]<-"f.Litter_Type"
+colnames(Sample.FTIR.H4.PCA)[4]<-"f.Treatment"
+colnames(Sample.FTIR.H4.PCA)[5]<-"f.Experiment"
+
+
+FTIR.comb.H4.pl.fig<-ggplot(Sample.FTIR.H4.PCA, aes(x = PC1, y =PC2)) + 
+  geom_segment(data = Bands.FTIR.H4.PCA, aes(xend = PC1, yend = PC2,x = 0, y = 0),col = "black",size=1, 
+               arrow = arrow(length = unit(0.25, "cm"))) +
+  geom_label_repel(data = Bands.FTIR.H4.PCA, aes(x = PC1, y = PC2, label = rownames(Bands.FTIR.H4.PCA)), col = "black") +
+  geom_point(aes(fill=f.Experiment),size=5,alpha = 0.7, shape=21) +
+ scale_fill_manual(values = c("orange2","slategray3"),labels = parse(text = c("BIFoR", "O[3]*'HP'")))+
+  #guides(fill = guide_legend(override.aes = list(shape = 21),order=1 ),
+         #shape = guide_legend(override.aes = list(fill = "black")) )+
+  labs(title="Leaf Litter Functional Groups",
+       x="PC1 (51.93% Variance Explained)",
+       y="PC2 (16.19% Variance Explained)" ,fill = "Experiment")+
+  theme_classic()+
+  theme(axis.title.x = element_text(color = "grey2", size =17),
+        axis.text.x = element_text(color = "grey2", size =15),
+        axis.title.y = element_text(color = "grey2", size = 17),
+        axis.text.y = element_text(color = "grey2", size =15),
+        legend.text = element_text(color = "grey2", size =15),
+        legend.title = element_text(color = "grey2", size =17),
+         legend.position = "right",
+        plot.title = ggtext::element_markdown(size=21))
+
+
+```
+
+## PLFA H3
+
+```{r}
+
+PLFA.hell<-decostand(c.data.h3.plfa[,c(1:18)], "hellinger")
+
+PLFA.H3.PCA <- rda(PLFA.hell,scale=TRUE)
+
+summary(PLFA.H3.PCA)
+
+scores.pca.PLFA<-vegan::scores(PLFA.H3.PCA, choices=c(1,2), scaling=3) 
+  
+Group.PLFA.PCA <- data.frame(scores.pca.PLFA$species)
+  
+Group.PLFA.PCA$Group <- rownames(Group.PLFA.PCA)
+  
+Sample.PLFA.PCA <- data.frame(scores.pca.PLFA$sites) 
+  
+Sample.PLFA.PCA<-data.frame(Sample.PLFA.PCA,c.data.h3.plfa$f.Litter_Type_new,c.data.h3.plfa$f.Treatment_new,c.data.h3.plfa$f.Experiment)
+colnames(Sample.PLFA.PCA)
+colnames(Sample.PLFA.PCA)[3]<-"f.Litter_Type"
+colnames(Sample.PLFA.PCA)[4]<-"f.Treatment"
+colnames(Sample.PLFA.PCA)[5]<-"f.Experiment"
+
+rownames(Group.PLFA.PCA)
+labels<-c("i14:0" ,"i-C15:0", "a-C15:0","i-C16:0","i-C17:0","a-C17:0","C16:1w7c","C18:1w7","C17:0 cyclo", "C19:0 cyclo",
+          "C14:0", "C15:0","C16:0","C17:0","10Me16:0","10Me17:0" ,"10Me18:0","C18:2w6,9")
+
+ PLFA.comb.pl.fig<-ggplot(Sample.PLFA.PCA, aes(x = PC1, y =PC2)) + 
+  geom_segment(data = Group.PLFA.PCA, aes(xend = PC1, yend = PC2,x = 0, y = 0),col = "black",size=1, 
+               arrow = arrow(length = unit(0.25, "cm"))) +
+  geom_label_repel(data = Group.PLFA.PCA, aes(x = PC1, y = PC2, label = labels),size=3, col = "black",max.overlaps = 18) +
+  geom_point(aes(fill=f.Experiment),size=5,alpha = 0.7, shape=21) +
+   scale_fill_manual(values = c("orange2","slategray3"),labels = parse(text = c("BIFoR", "O[3]*'HP'")))+
+  #guides(fill = guide_legend(override.aes = list(shape = 21),order=1 ),
+         #shape = guide_legend(override.aes = list(fill = "black")) )+
+  labs(title="Microbial Community",
+       x="PC1 (76.03% Variance Explained)",
+       y="PC2 (8.55% Variance Explained)", fill="Experiment")+
+  theme_classic()+
+  theme(axis.title.x = element_text(color = "grey2", size =17),
+        axis.text.x = element_text(color = "grey2", size =15),
+        axis.title.y = element_text(color = "grey2", size = 17),
+        axis.text.y = element_text(color = "grey2", size =15),
+        legend.text = element_text(color = "grey2", size =15),
+        legend.title = element_text(color = "grey2", size =17),
+        plot.title = ggtext::element_markdown(size=21))
+
+ 
+jpeg("Comb_FTM_pl.jpeg", width=1400, height=2400, res = 150, quality = 200)
+plot_grid(FTIR.comb.H3.pl.fig,FTIR.comb.H4.pl.fig, PLFA.comb.pl.fig , labels = c('A','B','C'), label_size = 16, ncol = 1)
+dev.off()
+
+```
+
+
+
+## Session Info
+
+```{r}
+sessionInfo()
+```

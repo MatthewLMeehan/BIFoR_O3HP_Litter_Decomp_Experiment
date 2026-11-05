@@ -1,0 +1,1043 @@
+---
+title: "GLOBAL CHANGE FACTORS - LEAF LITTER DECOMPOSITION"
+author: ""
+date: '2026-05-11'
+output: html_document
+---
+
+
+## Loading Packages and Datafiles
+
+```{r warning=FALSE, message = FALSE}
+rm(list=ls())
+library(ggplot2)
+library(dplyr)
+library(plotrix)
+library(car)
+library(MASS)
+library(lmerTest)
+library(nlme)
+library(lme4)
+library(vegan)
+library(cowplot)
+library(ggrepel)
+library(MuMIn)
+library(DHARMa)
+
+
+
+# IMPORT DATA FILE OR SET WORKING DIRECTORY
+
+# IMPORT DATA FILED CALLED : Master_OHP_Data_NERC_Submission_May4_2026
+
+data<-Master_OHP_Data_NERC_Submission_May4_2026
+str(data)
+colnames(data)
+
+##### I removed C14:0 and C16:0 peaks when calculating F:B ratios
+
+data$f.plot<-factor(data$plot)
+data$f.nb_pair<-factor(data$nb_pair)
+data$f.Harvest<-factor(data$Harvest)
+data$f.Litter_Type<-factor(data$Litter_Type)
+data$f.Treatment<-factor(data$Treatment)
+data$years<-rep(c(10,13,21,34), each=60)
+
+```
+
+
+## Splitting data into respectives harvests (H3 and H4)
+
+```{r}
+H3.data<-subset(data, Harvest == 3)
+H4.data<-subset(data, Harvest == 4)
+
+c.data<-data %>% filter(Harvest == 3 | Harvest == 4)
+
+ftir.data<-c.data %>% dplyr::select(c(11:25,54,56,57,58)) %>% 
+  group_by(f.plot, f.Harvest,f.Treatment,f.Litter_Type) %>%
+  summarise(across(1:15, mean, na.rm = TRUE), .groups = "drop")
+
+
+plfa.data<-H3.data %>% dplyr::select(c(26:43,54,57,58)) %>% 
+  group_by(f.plot,f.Treatment,f.Litter_Type) %>%
+  summarise(across(1:18, mean, na.rm = TRUE), .groups = "drop")
+
+
+
+```
+
+## C:N of Leaf Litter
+#### H3
+
+```{r}
+
+C.N_percent_summary_H3 <- H3.data %>% 
+  group_by( f.Treatment,f.Litter_Type) %>%   
+  summarise(N.mean = mean(N_percent,na.rm=TRUE),  
+            N.se = std.error(N_percent),
+            C.mean = mean(C_percent,na.rm=TRUE),
+            C.se = std.error(C_percent),
+            C.N.mean = mean(C.N.ratio,na.rm=TRUE),  
+            C.N.se = std.error(C.N.ratio))
+C.N_percent_summary_H3<-data.frame(C.N_percent_summary_H3)
+
+nitrogen.percent.H3 <- lmer(N_percent~ f.Treatment*f.Litter_Type + (1|f.plot),  data = H3.data)
+summary(nitrogen.percent.H3) 
+anova(nitrogen.percent.H3)
+
+round(r.squaredGLMM(nitrogen.percent.H3),4)
+
+plot(simulateResiduals(fittedModel = nitrogen.percent.H3))
+
+dodge <- position_dodge(width=0.9)
+
+N_percent.H3.fig<-ggplot(C.N_percent_summary_H3 , aes(f.Treatment, N.mean,fill=f.Litter_Type)) + 
+  geom_errorbar(aes(ymin = N.mean - N.se, ymax = N.mean  + N.se),position=dodge,width=0.3,size=0.6) + 
+  geom_point(data=H3.data, aes(x=f.Treatment,y=N_percent,group=f.Litter_Type), shape=21,position=dodge,size=2,color="black",stroke=0.4,alpha=0.4) +
+  geom_point(stat="identity",position=dodge,size=6,shape=21,color="black",alpha=1) +
+ scale_fill_manual(values = c("slategray3","palevioletred1"),labels = c("Control", "Experimental"))+
+  scale_x_discrete(labels = c("Ambient", "Drought"))+
+  scale_y_continuous(limits = c(0.8,2), breaks =c(1,1.2,1.4,1.6,1.8))+
+  guides(fill="none")+
+  labs(x = "Environment", y="Percent", title = "% Nitrogen",fill="Litter Origin") +
+  theme_classic()+
+  theme(axis.title.x = element_text(color = "grey2", size =17),
+        axis.text.x = element_text(color = "grey2", size =15),
+        axis.title.y = element_text(color = "grey2", size = 17),
+        axis.text.y = element_text(color = "grey2", size =15),
+        legend.text = element_text(color = "grey2", size =15),
+        legend.title = element_text(color = "grey2", size =17),
+        plot.title = ggtext::element_markdown(size=21))
+N_percent.H3.fig
+
+
+carbon.percent.H3 <- lmer(C_percent~ f.Treatment*f.Litter_Type + (1|f.plot),  data = H3.data)
+summary(carbon.percent.H3) 
+anova(carbon.percent.H3)
+
+round(r.squaredGLMM(carbon.percent.H3),4)
+
+plot(simulateResiduals(fittedModel = carbon.percent.H3))
+
+C_percent.H3.fig<-ggplot(C.N_percent_summary_H3 , aes(f.Treatment, C.mean,fill=f.Litter_Type)) + 
+  geom_errorbar(aes(ymin = C.mean - C.se, ymax = C.mean  + C.se),position=dodge,width=0.3,size=0.6) + 
+  geom_point(data=H3.data, aes(x=f.Treatment,y=C_percent,group=f.Litter_Type), shape=21,position=dodge,size=2,color="black",stroke=0.4,alpha=0.4) +
+  geom_point(stat="identity",position=dodge,size=6,shape=21,color="black",alpha=1) +
+ scale_fill_manual(values = c("slategray3","palevioletred1"),labels = c("Control", "Experimental"))+
+  scale_x_discrete(labels = c("Ambient", "Drought"))+
+  scale_y_continuous(limits = c(42,51), breaks =c(44,46,48,50))+
+  guides(fill="none")+
+  labs(x = "Environment", y="Percent", title = "% Carbon",fill="Litter Origin") +
+  theme_classic()+
+  theme(axis.title.x = element_text(color = "grey2", size =17),
+        axis.text.x = element_text(color = "grey2", size =15),
+        axis.title.y = element_text(color = "grey2", size = 17),
+        axis.text.y = element_text(color = "grey2", size =15),
+        legend.text = element_text(color = "grey2", size =15),
+        legend.title = element_text(color = "grey2", size =17),
+        plot.title = ggtext::element_markdown(size=21))
+C_percent.H3.fig
+
+
+C.N.H3 <- lmer(C.N.ratio~ f.Treatment*f.Litter_Type + (1|f.plot),  data = H3.data)
+summary(C.N.H3) 
+anova(C.N.H3)
+
+round(r.squaredGLMM(C.N.H3),4)
+
+
+plot(simulateResiduals(fittedModel = C.N.H3 ))
+
+C.N.H3.fig<-ggplot(C.N_percent_summary_H3 , aes(f.Treatment, C.N.mean,fill=f.Litter_Type)) + 
+  geom_errorbar(aes(ymin = C.N.mean - C.N.se, ymax = C.N.mean  + C.N.se),position=dodge,width=0.3,size=0.6) + 
+  geom_point(data=H3.data, aes(x=f.Treatment,y=C.N.ratio,group=f.Litter_Type), shape=21,position=dodge,size=2,color="black",stroke=0.4,alpha=0.4) +
+  geom_point(stat="identity",position=dodge,size=6,shape=21,color="black",alpha=1) +
+ scale_fill_manual(values = c("slategray3","palevioletred1"),labels = c("Control", "Experimental"))+
+  scale_x_discrete(labels = c("Ambient", "Drought"))+
+   scale_y_continuous(limits = c(23,55), breaks =c(25,30,35,40,45,50))+
+  #guides(fill="none")+
+  labs(x = "Environment", y="Ratio", title = "Carbon : Nitrogen",fill="Litter Origin") +
+  theme_classic()+
+  theme(axis.title.x = element_text(color = "grey2", size =17),
+        axis.text.x = element_text(color = "grey2", size =15),
+        axis.title.y = element_text(color = "grey2", size = 17),
+        axis.text.y = element_text(color = "grey2", size =15),
+        legend.text = element_text(color = "grey2", size =15),
+        legend.title = element_text(color = "grey2", size =17),
+        legend.position="bottom",
+        plot.title = ggtext::element_markdown(size=21))
+C.N.H3.fig
+
+#jpeg("OHP_H3_C_N.jpeg", width=900, height=2000, res = 150, quality = 200)
+#plot_grid(C_percent.H3.fig,N_percent.H3.fig,C.N.H3.fig, labels = c("A", "B", "C"), label_size = 15,ncol = 1)
+#dev.off()
+
+
+
+```
+
+#### H4
+
+```{r}
+C.N_percent_summary_H4 <- H4.data %>% 
+  group_by( f.Treatment,f.Litter_Type) %>%   
+  summarise(N.mean = mean(N_percent,na.rm=TRUE),  
+            N.se = std.error(N_percent),
+            C.mean = mean(C_percent,na.rm=TRUE),
+            C.se = std.error(C_percent),
+            C.N.mean = mean(C.N.ratio,na.rm=TRUE),  
+            C.N.se = std.error(C.N.ratio))
+C.N_percent_summary_H4<-data.frame(C.N_percent_summary_H4)
+
+
+nitrogen.percent.H4 <- lmer(N_percent~ f.Treatment*f.Litter_Type + (1|f.plot),  data = H4.data)
+summary(nitrogen.percent.H4) #remove  f.plot
+anova(nitrogen.percent.H4)
+
+round(r.squaredGLMM(nitrogen.percent.H4),4)
+
+
+nitrogen.percent.H4b <- lm(N_percent~ f.Treatment*f.Litter_Type,contrasts=list('f.Treatment'=contr.sum, 'f.Litter_Type'=contr.sum),  data = H4.data)
+summary(nitrogen.percent.H4b) 
+Anova(nitrogen.percent.H4b,type = "3")
+
+
+plot(simulateResiduals(fittedModel = nitrogen.percent.H4b ))
+
+dodge <- position_dodge(width=0.9)
+
+N_percent.H4.fig<-ggplot(C.N_percent_summary_H4 , aes(f.Treatment, N.mean,fill=f.Litter_Type)) + 
+  geom_errorbar(aes(ymin = N.mean - N.se, ymax = N.mean  + N.se),position=dodge,width=0.3,size=0.6) + 
+  geom_point(data=H4.data, aes(x=f.Treatment,y=N_percent,group=f.Litter_Type), shape=21,position=dodge,size=2,color="black",stroke=0.4,alpha=0.4) +
+  geom_point(stat="identity",position=dodge,size=6,shape=21,color="black",alpha=1) +
+ scale_fill_manual(values = c("slategray3","palevioletred1"),labels = c("Control", "Experimental"))+
+  scale_x_discrete(labels = c("Ambient", "Drought"))+
+  scale_y_continuous(limits = c(0.8,2), breaks =c(1,1.2,1.4,1.6,1.8))+
+  guides(fill="none")+
+  labs(x = "Environment", y="Percent", title = "% Nitrogen",fill="Litter Origin") +
+  theme_classic()+
+  theme(axis.title.x = element_text(color = "grey2", size =17),
+        axis.text.x = element_text(color = "grey2", size =15),
+        axis.title.y = element_text(color = "grey2", size = 17),
+        axis.text.y = element_text(color = "grey2", size =15),
+        legend.text = element_text(color = "grey2", size =15),
+        legend.title = element_text(color = "grey2", size =17),
+        plot.title = ggtext::element_markdown(size=21))
+N_percent.H4.fig
+
+
+carbon.percent.H4 <- lmer(C_percent~ f.Treatment*f.Litter_Type + (1|f.plot),  data = H4.data)
+summary(carbon.percent.H4 )
+anova(carbon.percent.H4)
+
+round(r.squaredGLMM(carbon.percent.H4),4)
+
+plot(simulateResiduals(fittedModel = carbon.percent.H4 ))
+
+C_percent.H4.fig<-ggplot(C.N_percent_summary_H4 , aes(f.Treatment, C.mean,fill=f.Litter_Type)) + 
+  geom_errorbar(aes(ymin = C.mean - C.se, ymax = C.mean  + C.se),position=dodge,width=0.3,size=0.6) + 
+  geom_point(data=H4.data, aes(x=f.Treatment,y=C_percent,group=f.Litter_Type), shape=21,position=dodge,size=2,color="black",stroke=0.4,alpha=0.4) +
+  geom_point(stat="identity",position=dodge,size=6,shape=21,color="black",alpha=1) +
+  scale_fill_manual(values = c("slategray3","palevioletred1"),labels = c("Control", "Experimental"))+
+  scale_x_discrete(labels = c("Ambient", "Drought"))+
+  scale_y_continuous(limits = c(42,51), breaks =c(44,46,48,50))+
+  guides(fill="none")+
+  labs(x = "Environment", y="Percent", title = "% Carbon",fill="Litter Origin") +
+  theme_classic()+
+  theme(axis.title.x = element_text(color = "grey2", size =17),
+        axis.text.x = element_text(color = "grey2", size =15),
+        axis.title.y = element_text(color = "grey2", size = 17),
+        axis.text.y = element_text(color = "grey2", size =15),
+        legend.text = element_text(color = "grey2", size =15),
+        legend.title = element_text(color = "grey2", size =17),
+        plot.title = ggtext::element_markdown(size=21))
+C_percent.H4.fig
+
+
+C.N.H4 <- lmer(C.N.ratio~ f.Treatment*f.Litter_Type + (1|f.plot),  data = H4.data)
+summary(C.N.H4) #remove f.plot
+anova(C.N.H4 )
+
+round(r.squaredGLMM(C.N.H4),4)
+
+
+C.N.H4b <- lm(C.N.ratio~ f.Treatment*f.Litter_Type,contrasts=list('f.Treatment'=contr.sum, 'f.Litter_Type'=contr.sum),  data = H4.data)
+summary(C.N.H4b) 
+Anova(C.N.H4b, type="3")
+
+
+plot(simulateResiduals(fittedModel = C.N.H4b ))
+
+C.N.H4.fig<-ggplot(C.N_percent_summary_H4 , aes(f.Treatment, C.N.mean,fill=f.Litter_Type)) + 
+  geom_errorbar(aes(ymin = C.N.mean - C.N.se, ymax = C.N.mean  + C.N.se),position=dodge,width=0.3,size=0.6) + 
+  geom_point(data=H4.data, aes(x=f.Treatment,y=C.N.ratio,group=f.Litter_Type), shape=21,position=dodge,size=2,color="black",stroke=0.4,alpha=0.4) +
+  geom_point(stat="identity",position=dodge,size=6,shape=21,color="black",alpha=1) +
+  scale_fill_manual(values = c("slategray3","palevioletred1"),labels = c("Control", "Experimental"))+
+  scale_x_discrete(labels = c("Ambient", "Drought"))+
+   scale_y_continuous(limits = c(23,55), breaks =c(25,30,35,40,45,50))+
+  #guides(fill="none")+
+  labs(x = "Environment", y="Ratio", title = "Carbon : Nitrogen",fill="Litter Origin") +
+  theme_classic()+
+  theme(axis.title.x = element_text(color = "grey2", size =17),
+        axis.text.x = element_text(color = "grey2", size =15),
+        axis.title.y = element_text(color = "grey2", size = 17),
+        axis.text.y = element_text(color = "grey2", size =15),
+        legend.text = element_text(color = "grey2", size =15),
+        legend.title = element_text(color = "grey2", size =17),
+        legend.position="bottom",
+        plot.title = ggtext::element_markdown(size=21))
+C.N.H4.fig
+
+#jpeg("OHP_H4_C_N.jpeg", width=900, height=2000, res = 150, quality = 200)
+#plot_grid(C_percent.H4.fig,N_percent.H4.fig,C.N.H4.fig, labels = c("D", "E", "F"), label_size = 15,ncol = 1)
+#dev.off()
+```
+
+
+## FTIR H3
+
+```{r}
+
+## AVERAGED DATA AT THE SUBPLOT LEVEL
+
+ftir.h3.data<-filter(ftir.data, f.Harvest==3)
+
+set.seed(123) # INTERACTION WAS NOT SIGNIFICANT SO RE-RAN THE MODEL
+#adonis2(scale(ftir.h3.data[,c(5:19)])~f.Treatment*f.Litter_Type  ,method="euclidean",data=ftir.h3.data,by="terms")
+adonis2(scale(ftir.h3.data[,c(5:19)])~f.Treatment+f.Litter_Type  ,method="euclidean",data=ftir.h3.data,by="terms")
+
+
+FTIR.H3.PCA.pl <- rda(ftir.h3.data[,c(5:19)],scale=TRUE) 
+
+summary(FTIR.H3.PCA.pl)
+
+scores.pca.FTIR.H3.pl<-vegan::scores(FTIR.H3.PCA.pl, choices=c(1,2), scaling=3) 
+
+Bands.FTIR.H3.PCA.pl <- data.frame(scores.pca.FTIR.H3.pl$species)
+  
+Bands.FTIR.H3.PCA.pl$Band <- rownames(Bands.FTIR.H3.PCA.pl)
+  
+Sample.FTIR.H3.PCA.pl <- data.frame(scores.pca.FTIR.H3.pl$sites) 
+  
+Sample.FTIR.H3.PCA.pl<-data.frame(Sample.FTIR.H3.PCA.pl,ftir.h3.data$f.Litter_Type,ftir.h3.data$f.Treatment)
+colnames(Sample.FTIR.H3.PCA.pl)
+colnames(Sample.FTIR.H3.PCA.pl)[3]<-"f.Litter_Type"
+colnames(Sample.FTIR.H3.PCA.pl)[4]<-"f.Treatment"
+
+OHP_FTIR_H3_pl.fig<-ggplot(Sample.FTIR.H3.PCA.pl, aes(x = PC1, y =PC2)) + 
+  geom_segment(data = Bands.FTIR.H3.PCA.pl, aes(xend = PC1, yend = PC2,x = 0, y = 0),col = "black",size=1, 
+               arrow = arrow(length = unit(0.25, "cm"))) +
+  geom_label_repel(data = Bands.FTIR.H3.PCA.pl, aes(x = PC1, y = PC2, label = rownames(Bands.FTIR.H3.PCA.pl)), col = "black") +
+  geom_point(aes(fill=f.Litter_Type,shape=f.Treatment),size=5,alpha = 0.9) +
+   scale_fill_manual(values = c("slategray3","palevioletred1"),labels = c("Control", "Experimental"))+
+  scale_shape_manual(values=c(22,24),labels = c("Ambient", "Drought"))+
+  guides(fill = guide_legend(override.aes = list(shape = 21, stroke=0),order=1 ),
+         shape = guide_legend(override.aes = list(fill = "black", stroke=0)) )+
+  labs(title="Leaf Litter Functional Groups",
+       x="PC1 (43.96% Variance Explained)",
+       y="PC2 (23.01% Variance Explained)", shape="Environment", fill = "Litter Origin")+
+  theme_classic()+
+  theme(axis.title.x = element_text(color = "grey2", size =17),
+        axis.text.x = element_text(color = "grey2", size =15),
+        axis.title.y = element_text(color = "grey2", size = 17),
+        axis.text.y = element_text(color = "grey2", size =15),
+        legend.text = element_text(color = "grey2", size =15),
+        legend.title = element_text(color = "grey2", size =17),
+         legend.position = "bottom",
+        plot.title = ggtext::element_markdown(size=21))
+
+
+
+#####################################################################################
+
+
+## DATA AT THE LITTERBAG LEVEL
+
+set.seed(123)
+
+adonis2(scale(H3.data[,c(11:25)])~f.Treatment*f.Litter_Type  ,method="euclidean",data=H3.data,by="terms")
+
+FTIR.H3.PCA <- rda(H3.data[,c(11:25)],scale=TRUE) 
+  
+summary(FTIR.H3.PCA)
+
+scores.pca.FTIR.H3<-vegan::scores(FTIR.H3.PCA, choices=c(1,2), scaling=3) 
+
+Bands.FTIR.H3.PCA <- data.frame(scores.pca.FTIR.H3$species)
+  
+Bands.FTIR.H3.PCA$Band <- rownames(Bands.FTIR.H3.PCA)
+  
+Sample.FTIR.H3.PCA <- data.frame(scores.pca.FTIR.H3$sites) 
+  
+Sample.FTIR.H3.PCA<-data.frame(Sample.FTIR.H3.PCA,H3.data$f.Litter_Type,H3.data$f.Treatment)
+colnames(Sample.FTIR.H3.PCA)
+colnames(Sample.FTIR.H3.PCA)[3]<-"f.Litter_Type"
+colnames(Sample.FTIR.H3.PCA)[4]<-"f.Treatment"
+
+
+OHP_FTIR_H3_lb.fig<-ggplot(Sample.FTIR.H3.PCA, aes(x = PC1, y =PC2)) + 
+  geom_segment(data = Bands.FTIR.H3.PCA, aes(xend = PC1, yend = PC2,x = 0, y = 0),col = "black",size=1, 
+               arrow = arrow(length = unit(0.25, "cm"))) +
+  geom_label_repel(data = Bands.FTIR.H3.PCA, aes(x = PC1, y = PC2, label = rownames(Bands.FTIR.H3.PCA)), col = "black") +
+  geom_point(aes(fill=f.Litter_Type,shape=f.Treatment),size=5,alpha = 0.9) +
+   scale_fill_manual(values = c("slategray3","palevioletred1"),labels = c("Control", "Experimental"))+
+    scale_shape_manual(values=c(22,24),labels = c("Ambient", "Drought"))+
+  guides(fill = guide_legend(override.aes = list(shape = 21, stroke=0),order=1 ),
+         shape = guide_legend(override.aes = list(fill = "black", stroke=0)) )+
+  labs(title="Leaf Litter Functional Groups",
+       x="PC1 (35.29% Variance Explained)",
+       y="PC2 (29.29% Variance Explained)", shape="Environment", fill = "Litter Origin")+
+  theme_classic()+
+  theme(axis.title.x = element_text(color = "grey2", size =17),
+        axis.text.x = element_text(color = "grey2", size =15),
+        axis.title.y = element_text(color = "grey2", size = 17),
+        axis.text.y = element_text(color = "grey2", size =15),
+        legend.text = element_text(color = "grey2", size =15),
+        legend.title = element_text(color = "grey2", size =17),
+         legend.position = "bottom",
+        plot.title = ggtext::element_markdown(size=21))
+
+
+
+
+
+```
+
+## FTIR H4
+
+```{r}
+
+## AVERAGED DATA AT THE SUBPLOT LEVEL
+
+ftir.h4.data<-filter(ftir.data, f.Harvest==4)
+
+set.seed(123)
+#adonis2(scale(ftir.h4.data[,c(5:19)])~f.Treatment*f.Litter_Type  ,method="euclidean",data=ftir.h4.data,by="terms")
+adonis2(scale(ftir.h4.data[,c(5:19)])~f.Treatment+f.Litter_Type  ,method="euclidean",data=ftir.h4.data,by="terms")
+
+
+FTIR.H4.PCA.pl <- rda(ftir.h4.data[,c(5:19)],scale=TRUE) 
+
+summary(FTIR.H4.PCA.pl)
+
+scores.pca.FTIR.H4.pl<-vegan::scores(FTIR.H4.PCA.pl, choices=c(1,2), scaling=3) 
+
+Bands.FTIR.H4.PCA.pl <- data.frame(scores.pca.FTIR.H4.pl$species)
+  
+Bands.FTIR.H4.PCA.pl$Band <- rownames(Bands.FTIR.H4.PCA.pl)
+  
+Sample.FTIR.H4.PCA.pl <- data.frame(scores.pca.FTIR.H4.pl$sites) 
+  
+Sample.FTIR.H4.PCA.pl<-data.frame(Sample.FTIR.H4.PCA.pl,ftir.h4.data$f.Litter_Type,ftir.h4.data$f.Treatment)
+colnames(Sample.FTIR.H4.PCA.pl)
+colnames(Sample.FTIR.H4.PCA.pl)[3]<-"f.Litter_Type"
+colnames(Sample.FTIR.H4.PCA.pl)[4]<-"f.Treatment"
+
+
+
+OHP_FTIR_H4_pl.fig<-ggplot(Sample.FTIR.H4.PCA.pl, aes(x = PC1, y =PC2)) + 
+  geom_segment(data = Bands.FTIR.H4.PCA.pl, aes(xend = PC1, yend = PC2,x = 0, y = 0),col = "black",size=1, 
+               arrow = arrow(length = unit(0.25, "cm"))) +
+  geom_label_repel(data = Bands.FTIR.H4.PCA.pl, aes(x = PC1, y = PC2, label = rownames(Bands.FTIR.H4.PCA.pl)), col = "black") +
+  geom_point(aes(fill=f.Litter_Type,shape=f.Treatment),size=5,alpha = 0.9) +
+   scale_fill_manual(values = c("slategray3","palevioletred1"),labels = c("Control", "Experimental"))+
+  scale_shape_manual(values=c(22,24),labels = c("Ambient", "Drought"))+
+  guides(fill = guide_legend(override.aes = list(shape = 21, stroke=0),order=1 ),
+         shape = guide_legend(override.aes = list(fill = "black", stroke=0)) )+
+  labs(title="Leaf Litter Functional Groups",
+       x="PC1 (45.55% Variance Explained)",
+       y="PC2 (29.48% Variance Explained)", shape="Environment", fill = "Litter Origin")+
+  theme_classic()+
+  theme(axis.title.x = element_text(color = "grey2", size =17),
+        axis.text.x = element_text(color = "grey2", size =15),
+        axis.title.y = element_text(color = "grey2", size = 17),
+        axis.text.y = element_text(color = "grey2", size =15),
+        legend.text = element_text(color = "grey2", size =15),
+        legend.title = element_text(color = "grey2", size =17),
+         legend.position = "bottom",
+        plot.title = ggtext::element_markdown(size=21))
+
+
+jpeg("OHP_FTIR_pl.jpeg", width=2600, height=900, res = 150, quality = 200)
+plot_grid(OHP_FTIR_H3_pl.fig,OHP_FTIR_H4_pl.fig , labels = c('C','D'), label_size = 16, ncol = 2)
+dev.off()
+
+#####################################################################################
+
+
+## DATA AT THE LITTERBAG LEVEL
+
+set.seed(123)
+adonis2(scale(H4.data[,c(11:25)])~ f.Treatment*f.Litter_Type ,method="euclidean",data=H4.data,by="terms")
+
+
+
+FTIR.H4.PCA<- rda(H4.data[,c(11:25)],scale=TRUE) 
+
+summary(FTIR.H4.PCA)
+
+scores.pca.FTIR.H4<-vegan::scores(FTIR.H4.PCA, choices=c(1,2), scaling=3) 
+  
+Bands.FTIR.H4.PCA <- data.frame(scores.pca.FTIR.H4$species)
+  
+Bands.FTIR.H4.PCA$Band <- rownames(Bands.FTIR.H4.PCA)
+  
+Sample.FTIR.H4.PCA <- data.frame(scores.pca.FTIR.H4$sites) 
+  
+Sample.FTIR.H4.PCA<-data.frame(Sample.FTIR.H4.PCA,H4.data$f.Litter_Type,H4.data$f.Treatment)
+colnames(Sample.FTIR.H4.PCA)
+colnames(Sample.FTIR.H4.PCA)[3]<-"f.Litter_Type"
+colnames(Sample.FTIR.H4.PCA)[4]<-"f.Treatment"
+
+OHP_FTIR_H4_lb.fig<- ggplot(Sample.FTIR.H4.PCA, aes(x = PC1, y =PC2)) + 
+  geom_segment(data = Bands.FTIR.H4.PCA, aes(xend = PC1, yend = PC2,x = 0, y = 0),col = "black",size=1, 
+               arrow = arrow(length = unit(0.25, "cm"))) +
+  geom_label_repel(data = Bands.FTIR.H4.PCA, aes(x = PC1, y = PC2, label = rownames(Bands.FTIR.H4.PCA)), col = "black") +
+  geom_point(aes(fill=f.Litter_Type,shape=f.Treatment),size=5,alpha = 0.7) +
+   scale_fill_manual(values = c("slategray3","palevioletred1"),labels = c("Control", "Experimental"))+
+   scale_shape_manual(values=c(22,24),labels = c("Ambient", "Drought"))+
+  guides(fill = guide_legend(override.aes = list(shape = 21),order=1 ),
+         shape = guide_legend(override.aes = list(fill = "black")) )+
+  labs(title="Leaf Litter Functional Groups",
+       x="PC1 (36.27% Variance Explained)",
+       y="PC2 (24.23% Variance Explained)", shape="Environment", fill="Litter Origin")+
+  theme_classic()+
+  theme(axis.title.x = element_text(color = "grey2", size =17),
+        axis.text.x = element_text(color = "grey2", size =15),
+        axis.title.y = element_text(color = "grey2", size = 17),
+        axis.text.y = element_text(color = "grey2", size =15),
+        legend.text = element_text(color = "grey2", size =15),
+        legend.title = element_text(color = "grey2", size =17),
+         legend.position = "bottom",
+        plot.title = ggtext::element_markdown(size=21))
+ 
+
+
+jpeg("OHP_FTIR_lb.jpeg", width=2600, height=900, res = 150, quality = 200)
+plot_grid(OHP_FTIR_H3_lb.fig,OHP_FTIR_H4_lb.fig , labels = c('C','D'), label_size = 16, ncol = 2)
+dev.off()
+
+```
+
+
+## PLFA
+
+```{r}
+
+PLFA_summary <- H3.data %>% 
+  group_by( f.Treatment,f.Litter_Type) %>%   
+  summarise(total.mean = mean(Total_PLFA),  
+            total.se = std.error(Total_PLFA),
+            FB.mean = mean(New_F.B),  
+            FB.se = std.error(New_F.B))
+PLFA_summary <-data.frame(PLFA_summary)
+
+Total_PLFA.mod <- lmer((Total_PLFA)~  f.Treatment*f.Litter_Type + (1|f.plot),  data = H3.data)
+summary(Total_PLFA.mod) 
+anova(Total_PLFA.mod)
+
+round(r.squaredGLMM(Total_PLFA.mod),4)
+
+plot(simulateResiduals(fittedModel = Total_PLFA.mod ))
+
+dodge <- position_dodge(width=0.9)
+
+Total.PLFA.Fig<-ggplot(PLFA_summary , aes(f.Treatment, total.mean,fill=f.Litter_Type)) + 
+  geom_errorbar(aes(ymin = total.mean - total.se, ymax = total.mean  + total.se),position=dodge,width=0.3,size=0.6) + 
+  geom_point(data=H3.data, aes(x=f.Treatment,y=Total_PLFA,group=f.Litter_Type), shape=21,position=dodge,size=2.6,color="black",stroke=0.4,alpha=0.4) +
+  geom_point(stat="identity",position=dodge,size=6,shape=21,color="black",alpha=1) +
+  scale_fill_manual(values = c("slategray3","palevioletred1"),labels = c("Control", "Experimental"))+
+  scale_x_discrete(labels = c("Ambient", "Drought"))+
+  guides(fill="none")+
+  labs(x = "Environment", y=expression(Total~PLFA~Concentrations~(nmol~ g~dwt^-1)), title = "Microbial Biomass",fill="Litter Origin") +
+  theme_classic()+
+  theme(axis.title.x = element_text(color = "grey2", size =17),
+        axis.text.x = element_text(color = "grey2", size =15),
+        axis.title.y = element_text(color = "grey2", size = 17),
+        axis.text.y = element_text(color = "grey2", size =15),
+        legend.text = element_text(color = "grey2", size =15),
+        legend.title = element_text(color = "grey2", size =17),
+        plot.title = ggtext::element_markdown(size=21))
+Total.PLFA.Fig
+
+
+
+F.B.mod.new <- lmer(New_F.B~ f.Treatment*f.Litter_Type + (1|f.plot),  data = H3.data)
+summary(F.B.mod.new) 
+anova(F.B.mod.new)
+
+round(r.squaredGLMM(F.B.mod.new ),4)
+
+plot(simulateResiduals(fittedModel = F.B.mod.new))
+
+dodge <- position_dodge(width=0.9)
+
+F.B.fig<-ggplot(PLFA_summary , aes(f.Treatment, FB.mean ,fill=f.Litter_Type)) + 
+  geom_errorbar(aes(ymin = FB.mean  - FB.se , ymax = FB.mean   + FB.se),position=dodge,width=0.3,size=0.6) + 
+  geom_point(data=H3.data, aes(x=f.Treatment,y=New_F.B,group=f.Litter_Type), shape=21,position=dodge,size=2.6,color="black",stroke=0.4,alpha=0.4) +
+  geom_point(stat="identity",position=dodge,size=6,shape=21,color="black",alpha=1) +
+ scale_fill_manual(values = c("slategray3","palevioletred1"),labels = c("Control", "Experimental"))+
+  scale_x_discrete(labels = c("Ambient", "Drought"))+
+  guides(fill="none")+
+  labs(x = "Environment", y="Ratio", title = "Fungi : Bacteria",fill="Litter Origin") +
+  theme_classic()+
+  theme(axis.title.x = element_text(color = "grey2", size =17),
+        axis.text.x = element_text(color = "grey2", size =15),
+        axis.title.y = element_text(color = "grey2", size = 17),
+        axis.text.y = element_text(color = "grey2", size =15),
+        legend.text = element_text(color = "grey2", size =15),
+        legend.title = element_text(color = "grey2", size =17),
+        plot.title = ggtext::element_markdown(size=21))
+F.B.fig
+
+
+
+## AVERAGED DATA AT THE SUBPLOT LEVEL
+
+# RECEIVED NEGATIVE R2 VALUES WHEN I HAD THE INTERACTION, LIKELY DUE TO TOO FEW DATAPOINTS
+set.seed(123)
+#adonis2(plfa.data[,c(4:21)]~f.Treatment*f.Litter_Type  ,method="bray",data=plfa.data,by="terms")
+adonis2(plfa.data[,c(4:21)]~f.Treatment+f.Litter_Type  ,method="bray",data=plfa.data,by="terms")
+
+
+PLFA.hell.pl<-decostand(plfa.data[,c(4:21)], "hellinger")
+
+PLFA.PCA.pl <- rda(PLFA.hell.pl,scale=TRUE)
+
+summary(PLFA.PCA.pl)
+
+
+scores.pca.PLFA.pl<-vegan::scores(PLFA.PCA.pl, choices=c(1,2), scaling=3) 
+  
+Group.PLFA.PCA.pl <- data.frame(scores.pca.PLFA.pl$species)
+  
+Group.PLFA.PCA.pl$Group <- rownames(Group.PLFA.PCA.pl)
+  
+Sample.PLFA.PCA.pl <- data.frame(scores.pca.PLFA.pl$sites) 
+  
+Sample.PLFA.PCA.pl<-data.frame(Sample.PLFA.PCA.pl,plfa.data$f.Litter_Type,plfa.data$f.Treatment)
+colnames(Sample.PLFA.PCA.pl)
+colnames(Sample.PLFA.PCA.pl)[3]<-"f.Litter_Type"
+colnames(Sample.PLFA.PCA.pl)[4]<-"f.Treatment"
+
+
+rownames(Group.PLFA.PCA.pl)
+labels.pl<-c("i14:0" ,"i-C15:0", "a-C15:0","i-C16:0","i-C17:0","a-C17:0","C16:1w7c","C18:1w7","C17:0 cyclo", "C19:0 cyclo",
+          "C14:0", "C15:0","C16:0","C17:0","10Me16:0","10Me17:0" ,"10Me18:0","C18:2w6,9")
+
+
+PLFA.pl.Fig<-ggplot(Sample.PLFA.PCA.pl, aes(x = PC1, y =PC2)) + 
+  geom_segment(data = Group.PLFA.PCA.pl, aes(xend = PC1, yend = PC2,x = 0, y = 0),col = "black",size=1, 
+               arrow = arrow(length = unit(0.25, "cm"))) +
+  geom_label_repel(data = Group.PLFA.PCA.pl, aes(x = PC1, y = PC2, label = labels.pl),size=3, col = "black",max.overlaps=Inf) +
+  geom_point(aes(fill=f.Litter_Type,shape=f.Treatment),size=5,alpha = 0.7) +
+    scale_fill_manual(values = c("slategray3","palevioletred1"),labels = c("Control", "Experimental"))+
+   scale_shape_manual(values=c(22,24),labels = c("Ambient", "Drought"))+
+  #guides(fill = guide_legend(override.aes = list(shape = 21),order=1 ),
+        # shape = guide_legend(override.aes = list(fill = "black")) )+
+  guides(shape=FALSE, fill=FALSE)+
+  labs(title="Microbial Community",
+       x="PC1 (69.29% Variance Explained)",
+       y="PC2 (12.44% Variance Explained)", shape="Environment", fill="Litter Origin")+
+  theme_classic()+
+  theme(axis.title.x = element_text(color = "grey2", size =17),
+        axis.text.x = element_text(color = "grey2", size =15),
+        axis.title.y = element_text(color = "grey2", size = 17),
+        axis.text.y = element_text(color = "grey2", size =15),
+        legend.text = element_text(color = "grey2", size =15),
+        legend.title = element_text(color = "grey2", size =17),
+        plot.title = ggtext::element_markdown(size=21))
+
+
+#top_row <- plot_grid(Total.PLFA.Fig,F.B.fig,labels = c('A', 'B'), label_size = 16)
+#jpeg("OHP_H3_PLFA.jpeg", width=1600, height=1800, res = 150, quality = 200)
+#plot_grid(top_row,PLFA.pl.Fig, labels = c('', 'C'), label_size = 16, ncol = 1,rel_heights  = c(1.3,2))
+#dev.off()
+
+
+#####################################################################################
+
+
+## DATA AT THE LITTERBAG LEVEL
+
+set.seed(123)
+#adonis2(H3.data[,c(26:43)]~f.Treatment*f.Litter_Type ,method="bray",data=H3.data, by="terms")
+adonis2(H3.data[,c(26:43)]~f.Treatment+f.Litter_Type ,method="bray",data=H3.data, by="margin")
+
+
+PLFA.hell<-decostand(H3.data[,c(26:43)], "hellinger")
+
+PLFA.H3.PCA <- rda(PLFA.hell,scale=TRUE) 
+
+summary(PLFA.H3.PCA)
+
+scores.pca.PLFA<-vegan::scores(PLFA.H3.PCA, choices=c(1,2), scaling=3) 
+  
+Group.PLFA.PCA <- data.frame(scores.pca.PLFA$species)
+  
+Group.PLFA.PCA$Group <- rownames(Group.PLFA.PCA)
+  
+Sample.PLFA.PCA <- data.frame(scores.pca.PLFA$sites) 
+  
+Sample.PLFA.PCA<-data.frame(Sample.PLFA.PCA,H3.data$f.Litter_Type,H3.data$f.Treatment)
+colnames(Sample.PLFA.PCA)
+colnames(Sample.PLFA.PCA)[3]<-"f.Litter_Type"
+colnames(Sample.PLFA.PCA)[4]<-"f.Treatment"
+
+rownames(Group.PLFA.PCA)
+labels<-c("i14:0" ,"i-C15:0", "a-C15:0","i-C16:0","i-C17:0","a-C17:0","C16:1w7c","C18:1w7","C17:0 cyclo", "C19:0 cyclo",
+          "C14:0", "C15:0","C16:0","C17:0","10Me16:0","10Me17:0" ,"10Me18:0","C18:2w6,9")
+
+PLFA.Fig <- ggplot(Sample.PLFA.PCA, aes(x = PC1, y =PC2)) + 
+  geom_segment(data = Group.PLFA.PCA, aes(xend = PC1, yend = PC2,x = 0, y = 0),col = "black",size=1, 
+               arrow = arrow(length = unit(0.25, "cm"))) +
+  geom_label_repel(data = Group.PLFA.PCA, aes(x = PC1, y = PC2, label = labels),size=3, col = "black",max.overlaps=Inf) +
+  geom_point(aes(fill=f.Litter_Type,shape=f.Treatment),size=5,alpha = 0.7) +
+    scale_fill_manual(values = c("slategray3","palevioletred1"),labels = c("Control", "Experimental"))+
+   scale_shape_manual(values=c(22,24),labels = c("Ambient", "Drought"))+
+  #guides(fill = guide_legend(override.aes = list(shape = 21),order=1 ),
+         #shape = guide_legend(override.aes = list(fill = "black")) )+
+  guides(shape=FALSE, fill=FALSE)+
+  labs(title="Microbial Community",
+       x="PC1 (60.77% Variance Explained)",
+       y="PC2 (11.93% Variance Explained)", shape="Environment", fill="Litter Origin")+
+  theme_classic()+
+  theme(axis.title.x = element_text(color = "grey2", size =17),
+        axis.text.x = element_text(color = "grey2", size =15),
+        axis.title.y = element_text(color = "grey2", size = 17),
+        axis.text.y = element_text(color = "grey2", size =15),
+        legend.text = element_text(color = "grey2", size =15),
+        legend.title = element_text(color = "grey2", size =17),
+        plot.title = ggtext::element_markdown(size=21))
+PLFA.Fig
+
+#jpeg("OHP_PLFA_lb.jpeg", width=1650, height=1200, res = 200, quality= 200)
+#PLFA.Fig
+#dev.off()
+
+
+#jpeg("OHP_H3_PLFA_II.jpeg", width=2400, height=2000, res = 150, quality = 200)
+#plot_grid(Total.PLFA.Fig,F.B.fig,PLFA.pl.Fig, PLFA.Fig,labels = c('A','B', 'C','D'), label_size = 16, ncol = 2)
+#dev.off()
+
+```
+
+## Soil Fauna Community
+#### H3
+
+```{r}
+
+
+fauna_abun_H3_summary <- H3.data %>% 
+  group_by( f.Treatment,f.Litter_Type) %>%   
+  summarise(c.mean = mean(Collembolan_Abundance_DW),  
+            c.se = std.error(Collembolan_Abundance_DW),
+            o.mean = mean(Oribatida_Abundance_DW),
+            o.se = std.error(Oribatida_Abundance_DW),
+            m.mean = mean(Mesostigmata_Abundance_DW),  
+            m.se = std.error(Mesostigmata_Abundance_DW),
+            a.mean = mean(Astigmata_Abundance_DW),  
+            a.se = std.error(Astigmata_Abundance_DW),
+            p.mean = mean(Prostigmata_Abundance_DW),  
+            p.se = std.error(Prostigmata_Abundance_DW),
+            ot.mean = mean(Other_Fauna_Abundance_DW),  
+            ot.se = std.error(Other_Fauna_Abundance_DW),
+            t.mean = mean(Total_Abundance_DW),  
+            t.se = std.error(Total_Abundance_DW))
+fauna_abun_H3_summary<-data.frame(fauna_abun_H3_summary)
+
+
+coll.abun.H3 <- lmer(Collembolan_Abundance_DW ~  f.Treatment*f.Litter_Type + (1|f.plot) , data = H3.data)
+summary(coll.abun.H3)
+anova(coll.abun.H3)
+
+
+round(r.squaredGLMM(coll.abun.H3),4)
+
+plot(simulateResiduals(fittedModel = coll.abun.H3))
+
+
+
+orib.abun.H3<- lmer(Oribatida_Abundance_DW ~  f.Treatment*f.Litter_Type + (1|f.plot) , data = H3.data)
+summary(orib.abun.H3)
+anova(orib.abun.H3)
+
+round(r.squaredGLMM(orib.abun.H3),4)
+
+plot(simulateResiduals(fittedModel = orib.abun.H3))
+
+
+meso.abun.H3 <- lmer(Mesostigmata_Abundance_DW ~  f.Treatment*f.Litter_Type + (1|f.plot) , data = H3.data)
+summary(meso.abun.H3) # remove f.plot 
+anova(meso.abun.H3)
+
+round(r.squaredGLMM(meso.abun.H3),4)
+
+meso.abun.H3b <- lm(Mesostigmata_Abundance_DW ~  f.Treatment*f.Litter_Type,contrasts=list('f.Treatment'=contr.sum, 'f.Litter_Type'=contr.sum) , data = H3.data)
+summary(meso.abun.H3b) 
+Anova(meso.abun.H3b,type="3")
+
+
+plot(simulateResiduals(fittedModel = meso.abun.H3b))
+
+
+astig.abun.H3 <- lmer(log(Astigmata_Abundance_DW+1) ~  f.Treatment*f.Litter_Type + (1|f.plot) , data = H3.data)
+summary(astig.abun.H3)
+anova(astig.abun.H3)
+
+plot(simulateResiduals(fittedModel = astig.abun.H3)) # even after log-transformation, still some issues, but due to a few samples with high amount of individuals
+
+
+prostig.abun.H3 <- lmer(Prostigmata_Abundance_DW ~  f.Treatment*f.Litter_Type + (1|f.plot), data = H3.data)
+summary(prostig.abun.H3) #Singularity issues with f.plot
+anova(prostig.abun.H3)
+
+round(r.squaredGLMM(prostig.abun.H3),4)
+
+prostig.abun.H3b <- lm(Prostigmata_Abundance_DW ~  f.Treatment*f.Litter_Type,contrasts=list('f.Treatment'=contr.sum, 'f.Litter_Type'=contr.sum) , data = H3.data)
+summary(prostig.abun.H3b)
+Anova(prostig.abun.H3b, type="3")
+
+
+plot(simulateResiduals(fittedModel = prostig.abun.H3b))
+
+
+
+other.abun.H3 <- lmer(Other_Fauna_Abundance_DW ~  f.Treatment*f.Litter_Type + (1|f.plot) , data = H3.data)
+summary(other.abun.H3)
+anova(other.abun.H3)
+
+round(r.squaredGLMM(other.abun.H3),4)
+
+plot(simulateResiduals(fittedModel = other.abun.H3))
+
+
+total.abun.H3  <- lmer(Total_Abundance_DW ~  f.Treatment*f.Litter_Type + (1|f.plot) , data = H3.data)
+summary(total.abun.H3) 
+anova(total.abun.H3)
+
+round(r.squaredGLMM(total.abun.H3),4)
+
+plot(simulateResiduals(fittedModel = total.abun.H3))
+
+
+
+```
+
+## Soil Fauna Community
+#### H4
+
+```{r}
+fauna_abun_H4_summary <- H4.data %>% 
+  group_by( f.Treatment,f.Litter_Type) %>%   
+  summarise(c.mean = mean(Collembolan_Abundance_DW),  
+            c.se = std.error(Collembolan_Abundance_DW),
+            o.mean = mean(Oribatida_Abundance_DW),
+            o.se = std.error(Oribatida_Abundance_DW),
+            m.mean = mean(Mesostigmata_Abundance_DW),  
+            m.se = std.error(Mesostigmata_Abundance_DW),
+            a.mean = mean(Astigmata_Abundance_DW),  
+            a.se = std.error(Astigmata_Abundance_DW),
+            p.mean = mean(Prostigmata_Abundance_DW),  
+            p.se = std.error(Prostigmata_Abundance_DW),
+            ot.mean = mean(Other_Fauna_Abundance_DW),  
+            ot.se = std.error(Other_Fauna_Abundance_DW),
+            t.mean = mean(Total_Abundance_DW),  
+            t.se = std.error(Total_Abundance_DW))
+fauna_abun_H4_summary<-data.frame(fauna_abun_H4_summary)
+
+
+coll.abun.H4 <- lmer(Collembolan_Abundance_DW ~ f.Treatment*f.Litter_Type + (1|f.plot) , data = H4.data)
+summary(coll.abun.H4)
+anova(coll.abun.H4)
+
+round(r.squaredGLMM(coll.abun.H4),4)
+
+
+plot(simulateResiduals(fittedModel = coll.abun.H4))
+
+
+dodge <- position_dodge(width=0.6)
+
+
+orib.abun.H4<- lmer(Oribatida_Abundance_DW ~ f.Treatment*f.Litter_Type + (1|f.plot) , data = H4.data)
+summary(orib.abun.H4)
+anova(orib.abun.H4)
+
+plot(simulateResiduals(fittedModel = orib.abun.H4)) # slight difference in dispersion between groups, but data is linear
+# log transformation does not make variance insignificant, but still no significant difference between factors so will keep
+# Likely driven by drought - drought, having slightly less variance than other factors
+
+leveneTest(Oribatida_Abundance_DW ~interaction(f.Treatment, f.Litter_Type), data = H4.data) # p-value of 0.04, I am not too concerned with that but will try and control for variance
+
+orib.abun.H4_2<-lme(Oribatida_Abundance_DW ~ f.Treatment*f.Litter_Type,random=~1|f.plot,data=H4.data,weights=varIdent(form=~1|f.Litter_Type*f.Treatment))
+summary(orib.abun.H4_2)
+anova(orib.abun.H4_2) # model is balanced and no term is significant - reported this model in paper
+
+
+round(r.squaredGLMM(orib.abun.H4_2),4)
+
+
+meso.abun.H4 <- lmer(Mesostigmata_Abundance_DW ~ f.Treatment*f.Litter_Type + (1|f.plot) , data = H4.data)
+summary(meso.abun.H4) 
+anova(meso.abun.H4)
+
+round(r.squaredGLMM(meso.abun.H4),4)
+
+
+plot(simulateResiduals(fittedModel = meso.abun.H4)) 
+
+
+astig.abun.H4 <- lmer(log(Astigmata_Abundance_DW+1) ~ f.Treatment*f.Litter_Type + (1|f.plot) , data = H4.data)
+summary(astig.abun.H4) 
+anova(astig.abun.H4)
+
+plot(simulateResiduals(fittedModel = astig.abun.H4)) # same issue as before, because often there are so few astigs
+
+
+
+
+prostig.abun.H4 <- lmer(Prostigmata_Abundance_DW ~ Treatment*Litter_Type + (1|f.plot), data = H4.data)
+summary(prostig.abun.H4) #Singularity issues with f.plot
+anova(prostig.abun.H4)
+
+round(r.squaredGLMM(prostig.abun.H4),4)
+
+
+prostig.abun.H4b <- lm(Prostigmata_Abundance_DW ~ f.Treatment*f.Litter_Type,contrasts=list('f.Treatment'=contr.sum, 'f.Litter_Type'=contr.sum), data = H4.data)
+summary(prostig.abun.H4b)
+Anova(prostig.abun.H4b,type="3")
+
+plot(simulateResiduals(fittedModel = prostig.abun.H4b)) 
+
+
+
+other.abun.H4 <- lmer(Other_Fauna_Abundance_DW ~ f.Treatment*f.Litter_Type + (1|f.plot)  , data = H4.data)
+summary(other.abun.H4)
+anova(other.abun.H4)
+
+round(r.squaredGLMM(other.abun.H4),4)
+
+plot(simulateResiduals(fittedModel = other.abun.H4)) 
+
+
+
+total.abun.H4  <- lmer(Total_Abundance_DW ~ f.Treatment*f.Litter_Type + (1|f.plot), data = H4.data)
+summary(total.abun.H4) 
+anova(total.abun.H4)
+
+round(r.squaredGLMM(total.abun.H4),4)
+
+plot(simulateResiduals(fittedModel = total.abun.H4)) 
+
+
+
+```
+
+## Litter moisture
+#### H3
+
+```{r}
+Moisture_H3_summary <- H3.data %>% 
+  group_by( f.Treatment,f.Litter_Type) %>%   
+  summarise(mois.mean = mean(Moisture_perc),  
+            mois.se = std.error(Moisture_perc))
+Moisture_H3_summary <-data.frame(Moisture_H3_summary)
+
+Moisture.H3.mod <- lmer(Moisture_perc~ f.Treatment*f.Litter_Type + (1|f.plot),  data = H3.data)
+summary(Moisture.H3.mod) 
+anova(Moisture.H3.mod)
+
+round(r.squaredGLMM(Moisture.H3.mod),4)
+
+plot(simulateResiduals(fittedModel = Moisture.H3.mod)) 
+
+
+
+
+```
+
+#### H4
+
+```{r}
+Moisture_H4_summary <- H4.data %>% 
+  group_by( f.Treatment,f.Litter_Type) %>%   
+  summarise(mois.mean = mean(Moisture_perc),  
+            mois.se = std.error(Moisture_perc))
+Moisture_H4_summary <-data.frame(Moisture_H4_summary)
+
+Moisture.H4.mod <- lmer(Moisture_perc~ f.Treatment*f.Litter_Type + (1|f.plot),  data = H4.data)
+summary(Moisture.H4.mod) # remove f.plot
+
+Moisture.H4.modb<- lm(Moisture_perc ~ f.Treatment*f.Litter_Type,contrasts=list('f.Treatment'=contr.sum, 'f.Litter_Type'=contr.sum)  , data = H4.data)
+summary(Moisture.H4.modb)
+Anova(Moisture.H4.modb,type="3")
+
+plot(simulateResiduals(fittedModel = Moisture.H4.modb)) 
+# there are some extreme values, when transformed, it does not make a difference for significance
+
+Moisture.H4.modc<- lm(asin(sqrt(Moisture_perc*0.01)) ~ f.Treatment*f.Litter_Type,contrasts=list('f.Treatment'=contr.sum, 'f.Litter_Type'=contr.sum)  , data = H4.data)
+summary(Moisture.H4.modc)
+Anova(Moisture.H4.modc,type="3")
+
+plot(simulateResiduals(fittedModel = Moisture.H4.modc)) 
+
+
+# after transformation, helps distribution a bit but does not affect results, just have a few extreme outliers
+# that affect the distribution of data
+
+
+```
+
+## Summarize data for Supp info
+
+```{r}
+
+
+#H3_mean_summary <- H3.data %>% 
+#group_by( f.Treatment,f.Litter_Type) %>%   
+ #summarise_if(is.numeric, mean, na.rm = TRUE)
+#H3_mean_summary  <-data.frame(H3_mean_summary )
+
+#H3_se_summary <- H3.data %>% 
+#group_by( f.Treatment,f.Litter_Type) %>%   
+ #summarise_if(is.numeric, std.error)
+#H3_se_summary  <-data.frame(H3_se_summary )
+
+#write.csv(H3_se_summary, "OHP_H3_se_Summary.csv")
+
+#H4_mean_summary <- H4.data %>% 
+#group_by( f.Treatment,f.Litter_Type) %>%   
+ #summarise_if(is.numeric, mean, na.rm = TRUE)
+#H4_mean_summary  <-data.frame(H4_mean_summary)
+
+#write.csv(H4_mean_summary, "OHP_H4_Summary.csv")
+
+#H4_se_summary <- H4.data %>% 
+#group_by( f.Treatment,f.Litter_Type) %>%   
+# summarise_if(is.numeric, std.error)
+#H4_se_summary  <-data.frame(H4_se_summary)
+
+#write.csv(H4_se_summary, "OHP_H4_se_Summary.csv")
+```
+
+## Packages Citation
+
+```{r}
+citation("vegan")
+citation("stats")
+citation("lme4")
+citation("lmerTest")
+citation("piecewiseSEM")
+citation("nlme")
+citation("ggplot2")
+```
+
+
+## Session Info
+
+```{r}
+sessionInfo()
+```
+
