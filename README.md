@@ -5,4 +5,4 @@ Litter decomposition experiment performed at the field sites BIFoR FACE (Birming
 
 Files will also be submitted to the Natural Environment Research Council (UK) Environmental Information Data Centre (EIDC).  I will update the description here when it becomes available.
 
-If using this data, please cite the EIDC DOI, citations for the code specifically can done with the Zenodo DOI. 
+If using this data, please cite the EIDC DOI, citations for the code specifically can be done with the Zenodo DOI. 
